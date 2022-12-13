@@ -38,8 +38,10 @@ typedef enum UserAuth
 	uaLDAP,
 	uaCert,
 	uaRADIUS,
-	uaPeer
-#define USER_AUTH_LAST uaPeer	/* Must be last value of this enum */
+	uaCustom,
+	uaPeer,
+	uaOAuth
+#define USER_AUTH_LAST uaOAuth	/* Must be last value of this enum */
 } UserAuth;
 
 /*
@@ -91,6 +93,13 @@ typedef struct AuthToken
 	regex_t    *regex;
 } AuthToken;
 
+/* Struct for custom options defined by custom auth plugins */
+typedef struct CustomOption
+{
+	char	*name;
+	char	*value;
+}CustomOption;
+
 typedef struct HbaLine
 {
 	char	   *sourcefile;
@@ -135,6 +144,11 @@ typedef struct HbaLine
 	char	   *radiusidentifiers_s;
 	List	   *radiusports;
 	char	   *radiusports_s;
+	char	   *oauth_issuer;
+	char	   *oauth_scope;
+	bool		oauth_skip_usermap;
+	char	   *custom_provider;
+	List	   *custom_auth_options;
 } HbaLine;
 
 typedef struct IdentLine

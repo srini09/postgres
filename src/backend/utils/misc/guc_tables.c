@@ -43,6 +43,7 @@
 #include "jit/jit.h"
 #include "libpq/auth.h"
 #include "libpq/libpq.h"
+#include "libpq/oauth.h"
 #include "optimizer/cost.h"
 #include "optimizer/geqo.h"
 #include "optimizer/optimizer.h"
@@ -4466,6 +4467,17 @@ struct config_string ConfigureNamesString[] =
 		&backtrace_functions,
 		"",
 		check_backtrace_functions, assign_backtrace_functions, NULL
+	},
+
+	{
+		{"oauth_validator_command", PGC_SIGHUP, CONN_AUTH_AUTH,
+			gettext_noop("Command to validate OAuth v2 bearer tokens."),
+			NULL,
+			GUC_SUPERUSER_ONLY
+		},
+		&oauth_validator_command,
+		"",
+		NULL, NULL, NULL
 	},
 
 	/* End-of-list marker */
