@@ -1172,6 +1172,61 @@ report_parse_error(JsonParseContext ctx, JsonLexContext *lex)
 		return JSON_EXPECTED_MORE;
 
 	/* Otherwise choose the error type based on the parsing context. */
+	switch (ctx)
+	{
+		case JSON_PARSE_END:
+			return JSON_EXPECTED_END;
+		case JSON_PARSE_VALUE:
+			return JSON_EXPECTED_JSON;
+		case JSON_PARSE_STRING:
+			return JSON_EXPECTED_STRING;
+		case JSON_PARSE_ARRAY_START:
+			return JSON_EXPECTED_ARRAY_FIRST;
+		case JSON_PARSE_ARRAY_NEXT:
+			return JSON_EXPECTED_ARRAY_NEXT;
+		case JSON_PARSE_OBJECT_START:
+			return JSON_EXPECTED_OBJECT_FIRST;
+		case JSON_PARSE_OBJECT_LABEL:
+			return JSON_EXPECTED_COLON;
+		case JSON_PARSE_OBJECT_NEXT:
+			return JSON_EXPECTED_OBJECT_NEXT;
+		case JSON_PARSE_OBJECT_COMMA:
+			return JSON_EXPECTED_STRING;
+	}
+
+	/*
+	 * We don't use a default: case, so that the compiler will warn about
+	 * unhandled enum values.
+	 */
+	Assert(false);
+	return JSON_SUCCESS;		/* silence stupider compilers */
+}
+
+
+/*
+ * Construct a detail message for a JSON error.
+ *
+ * The returned allocation is either static or owned by the JsonLexContext and
+ * should not be freed.
+ */
+char *
+json_errdetail(JsonParseErrorType error, JsonLexContext *lex)
+{
+	int		toklen = lex->token_terminator - lex->token_start;
+
+	if (error == JSON_OUT_OF_MEMORY)
+	{
+		/* Short circuit. Allocating anything for this case is unhelpful. */
+		return _("out of memory");
+	}
+
+	if (lex->errormsg)
+		resetStrVal(lex->errormsg);
+	else
+		lex->errormsg = createStrVal();
+
+
+	/* Otherwise choose the error type based on the parsing context. */
 	switch (error)
 	{
 		case JSON_SUCCESS:
@@ -1246,8 +1301,7 @@ report_parse_error(JsonParseContext ctx, JsonLexContext *lex)
 			return _("Unicode escape values cannot be used for code point values above 007F when the encoding is not UTF8.");
 		case JSON_UNICODE_UNTRANSLATABLE:
 			/* note: this case is only reachable in backend not frontend */
-			return psprintf(_("Unicode escape value could not be translated to the server's encoding %s."),
-							GetDatabaseEncodingName());
+			return _("Unicode escape value could not be translated to the server's encoding.");
 		case JSON_UNICODE_HIGH_SURROGATE:
 			return _("Unicode high surrogate must not follow a high surrogate.");
 		case JSON_UNICODE_LOW_SURROGATE:

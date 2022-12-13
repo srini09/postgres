@@ -509,7 +509,7 @@ validate(Port *port, const char *auth, char **logdetail)
 	}
 
 	/* Make sure the validator authenticated the user. */
-	if (!port->authn_id)
+	if (!MyClientConnectionInfo.authn_id)
 	{
 		/* TODO: use logdetail; reduce message duplication */
 		ereport(LOG,
@@ -519,8 +519,8 @@ validate(Port *port, const char *auth, char **logdetail)
 	}
 
 	/* Finally, check the user map. */
-	ret = check_usermap(port->hba->usermap, port->user_name, port->authn_id,
-						false);
+	ret = check_usermap(port->hba->usermap, port->user_name,
+						MyClientConnectionInfo.authn_id, false);
 	return (ret == STATUS_OK);
 }
 
