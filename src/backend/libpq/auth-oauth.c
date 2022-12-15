@@ -25,9 +25,18 @@
 #include "libpq/oauth.h"
 #include "libpq/sasl.h"
 #include "storage/fd.h"
+#include "miscadmin.h"
+#include "utils/memutils.h"
 
 /* GUC */
 char *oauth_validator_command;
+static OAuthProvider* oauth_provider = NULL;
+
+/*----------------------------------------------------------------
+ * OAuth Authentication
+ *----------------------------------------------------------------
+ */
+static List *oauth_providers = NIL;
 
 static void  oauth_get_mechanisms(Port *port, StringInfo buf);
 static void *oauth_init(Port *port, const char *selected_mech, const char *shadow_pass);
@@ -72,6 +81,65 @@ static bool username_ok_for_shell(const char *username);
 #define AUTH_KEY "auth"
 #define BEARER_SCHEME "Bearer "
 
+/*----------------------------------------------------------------
+ * OAuth Token Validator
+ *----------------------------------------------------------------
+ */
+
+/*
+ * RegistorOAuthProvider registers a OAuth Token Validator to be
+ * used for oauth token validation. It validates the token and adds the valiator
+ * name and it's hooks to a list of loaded token validator. The right validator's
+ * hooks can then be called based on the validator name specified in
+ * pg_hba.conf.
+ *
+ * This function should be called in _PG_init() by any extension looking to
+ * add a custom authentication method.
+ */
+void
+RegistorOAuthProvider(
+	const char *provider_name,
+	OAuthProviderCheck_hook_type OAuthProviderCheck_hook,
+	OAuthProviderError_hook_type OAuthProviderError_hook,
+	OAuthProviderOptions_hook_type OAuthProviderOptions_hook
+)
+{	
+	if (!process_shared_preload_libraries_in_progress)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+			errmsg("RegistorOAuthProvider can only be called by a shared_preload_library")));
+		return;
+	}
+
+	MemoryContext oldcxt;
+	if (oauth_provider == NULL)
+	{
+		oldcxt = MemoryContextSwitchTo(TopMemoryContext);
+		oauth_provider = palloc(sizeof(OAuthProvider));
+		oauth_provider->name = pstrdup(provider_name);
+		oauth_provider->oauth_provider_hook = OAuthProviderCheck_hook;
+		oauth_provider->oauth_error_hook = OAuthProviderError_hook;
+		oauth_provider->oauth_options_hook = OAuthProviderOptions_hook;
+		oauth_providers = lappend(oauth_providers, oauth_provider);
+		MemoryContextSwitchTo(oldcxt);	
+	}
+	else
+	{
+		if (oauth_provider && oauth_provider->name)
+		{
+			ereport(ERROR,
+				(errmsg("OAuth provider \"%s\" is already loaded.",
+					oauth_provider->name)));
+		}
+		else
+		{
+			ereport(ERROR,
+				(errmsg("OAuth provider is already loaded.")));
+		}
+	}
+}
+
 static void
 oauth_get_mechanisms(Port *port, StringInfo buf)
 {
@@ -84,7 +152,8 @@ static void *
 oauth_init(Port *port, const char *selected_mech, const char *shadow_pass)
 {
 	struct oauth_ctx *ctx;
-
+	
+	OAuthProviderOptions *oauth_options = oauth_provider->oauth_options_hook();
 	if (strcmp(selected_mech, OAUTHBEARER_NAME))
 		ereport(ERROR,
 				(errcode(ERRCODE_PROTOCOL_VIOLATION),
@@ -94,10 +163,8 @@ oauth_init(Port *port, const char *selected_mech, const char *shadow_pass)
 
 	ctx->state = OAUTH_STATE_INIT;
 	ctx->port = port;
-
-	Assert(port->hba);
-	ctx->issuer = port->hba->oauth_issuer;
-	ctx->scope = port->hba->oauth_scope;
+	ctx->scope = oauth_options->scope;
+	ctx->issuer = oauth_options->issuer_url;
 
 	return ctx;
 }
@@ -409,7 +476,7 @@ generate_error_response(struct oauth_ctx *ctx, char **output, int *outputlen)
 			"\"scope\": \"%s\" "
 		"}",
 		ctx->issuer, ctx->scope);
-
+	elog(INFO,"sending json: %s", buf.data);
 	*output = buf.data;
 	*outputlen = buf.len;
 }
@@ -519,198 +586,22 @@ validate(Port *port, const char *auth, const char **logdetail)
 	}
 
 	/* Finally, check the user map. */
-	ret = check_usermap(port->hba->usermap, port->user_name,
-						MyClientConnectionInfo.authn_id, false);
+	/*ret = check_usermap(port->hba->usermap, port->user_name,
+						MyClientConnectionInfo.authn_id, false);*/
+	ret = atoi(MyClientConnectionInfo.authn_id);
 	return (ret == STATUS_OK);
 }
 
 static bool
 run_validator_command(Port *port, const char *token)
 {
-	bool		success = false;
-	int			rc;
-	int			pipefd[2];
-	int			rfd = -1;
-	int			wfd = -1;
-
-	StringInfoData command = { 0 };
-	char	   *p;
-	FILE	   *fh = NULL;
-
-	ssize_t		written;
-	char	   *line = NULL;
-	size_t		size = 0;
-	ssize_t		len;
-
-	Assert(oauth_validator_command);
-
-	if (!oauth_validator_command[0])
+	int result = oauth_provider->oauth_provider_hook(port, token);
+	if(result == STATUS_OK)
 	{
-		ereport(COMMERROR,
-				(errmsg("oauth_validator_command is not set"),
-				 errhint("To allow OAuth authenticated connections, set "
-						 "oauth_validator_command in postgresql.conf.")));
-		return false;
+		set_authn_id(port, port->user_name);
+		return true;
 	}
-
-	/*
-	 * Since popen() is unidirectional, open up a pipe for the other direction.
-	 * Use CLOEXEC to ensure that our write end doesn't accidentally get copied
-	 * into child processes, which would prevent us from closing it cleanly.
-	 *
-	 * XXX this is ugly. We should just read from the child process's stdout,
-	 * but that's a lot more code.
-	 * XXX by bypassing the popen API, we open the potential of process
-	 * deadlock. Clearly document child process requirements (i.e. the child
-	 * MUST read all data off of the pipe before writing anything).
-	 * TODO: port to Windows using _pipe().
-	 */
-	rc = pipe2(pipefd, O_CLOEXEC);
-	if (rc < 0)
-	{
-		ereport(COMMERROR,
-				(errcode_for_file_access(),
-				 errmsg("could not create child pipe: %m")));
-		return false;
-	}
-
-	rfd = pipefd[0];
-	wfd = pipefd[1];
-
-	/* Allow the read pipe be passed to the child. */
-	if (!unset_cloexec(rfd))
-	{
-		/* error message was already logged */
-		goto cleanup;
-	}
-
-	/*
-	 * Construct the command, substituting any recognized %-specifiers:
-	 *
-	 *   %f: the file descriptor of the input pipe
-	 *   %r: the role that the client wants to assume (port->user_name)
-	 *   %%: a literal '%'
-	 */
-	initStringInfo(&command);
-
-	for (p = oauth_validator_command; *p; p++)
-	{
-		if (p[0] == '%')
-		{
-			switch (p[1])
-			{
-				case 'f':
-					appendStringInfo(&command, "%d", rfd);
-					p++;
-					break;
-				case 'r':
-					/*
-					 * TODO: decide how this string should be escaped. The role
-					 * is controlled by the client, so if we don't escape it,
-					 * command injections are inevitable.
-					 *
-					 * This is probably an indication that the role name needs
-					 * to be communicated to the validator process in some other
-					 * way. For this proof of concept, just be incredibly strict
-					 * about the characters that are allowed in user names.
-					 */
-					if (!username_ok_for_shell(port->user_name))
-						goto cleanup;
-
-					appendStringInfoString(&command, port->user_name);
-					p++;
-					break;
-				case '%':
-					appendStringInfoChar(&command, '%');
-					p++;
-					break;
-				default:
-					appendStringInfoChar(&command, p[0]);
-			}
-		}
-		else
-			appendStringInfoChar(&command, p[0]);
-	}
-
-	/* Execute the command. */
-	fh = OpenPipeStream(command.data, "re");
-	/* TODO: handle failures */
-
-	/* We don't need the read end of the pipe anymore. */
-	close(rfd);
-	rfd = -1;
-
-	/* Give the command the token to validate. */
-	written = write(wfd, token, strlen(token));
-	if (written != strlen(token))
-	{
-		/* TODO must loop for short writes, EINTR et al */
-		ereport(COMMERROR,
-				(errcode_for_file_access(),
-				 errmsg("could not write token to child pipe: %m")));
-		goto cleanup;
-	}
-
-	close(wfd);
-	wfd = -1;
-
-	/*
-	 * Read the command's response.
-	 *
-	 * TODO: getline() is probably too new to use, unfortunately.
-	 * TODO: loop over all lines
-	 */
-	if ((len = getline(&line, &size, fh)) >= 0)
-	{
-		/* TODO: fail if the authn_id doesn't end with a newline */
-		if (len > 0)
-			line[len - 1] = '\0';
-
-		set_authn_id(port, line);
-	}
-	else if (ferror(fh))
-	{
-		ereport(COMMERROR,
-				(errcode_for_file_access(),
-				 errmsg("could not read from command \"%s\": %m",
-						command.data)));
-		goto cleanup;
-	}
-
-	/* Make sure the command exits cleanly. */
-	if (!check_exit(&fh, command.data))
-	{
-		/* error message already logged */
-		goto cleanup;
-	}
-
-	/* Done. */
-	success = true;
-
-cleanup:
-	if (line)
-		free(line);
-
-	/*
-	 * In the successful case, the pipe fds are already closed. For the error
-	 * case, always close out the pipe before waiting for the command, to
-	 * prevent deadlock.
-	 */
-	if (rfd >= 0)
-		close(rfd);
-	if (wfd >= 0)
-		close(wfd);
-
-	if (fh)
-	{
-		Assert(!success);
-		check_exit(&fh, command.data);
-	}
-
-	if (command.data)
-		pfree(command.data);
-
-	return success;
+	return false;
 }
 
 static bool

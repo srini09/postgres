@@ -156,6 +156,22 @@ get_auth_token(PGconn *conn)
 	const char *token_type;
 	char	   *token = NULL;
 
+	token_buf = createPQExpBuffer();
+	if (!token_buf)
+		goto cleanup;
+	
+	if(conn->oauth_bearer_token)
+	{
+		appendPQExpBufferStr(token_buf, "Bearer ");
+		appendPQExpBufferStr(token_buf, conn->oauth_bearer_token);
+		if (PQExpBufferBroken(token_buf))
+			goto cleanup;
+		token = strdup(token_buf->data);
+		if (token_buf)
+			destroyPQExpBuffer(token_buf);
+		return token;
+	}
+
 	if (!conn->oauth_discovery_uri)
 		return strdup(""); /* ask the server for one */
 

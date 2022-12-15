@@ -358,6 +358,10 @@ static const internalPQconninfoOption PQconninfoOptions[] = {
 		"OAuth-Scope", "", 15,
 	offsetof(struct pg_conn, oauth_scope)},
 
+	{"oauth_bearer_token", NULL, NULL, NULL,
+		"OAuth-Bearer-Token", "", 40,
+	offsetof(struct pg_conn, oauth_bearer_token)},
+
 	/* Terminating entry --- MUST BE LAST */
 	{NULL, NULL, NULL, NULL,
 	NULL, NULL, 0}
@@ -4068,6 +4072,7 @@ freePGconn(PGconn *conn)
 	free(conn->oauth_client_id);
 	free(conn->oauth_client_secret);
 	free(conn->oauth_scope);
+	free(conn->oauth_bearer_token);
 	termPQExpBuffer(&conn->errorMessage);
 	termPQExpBuffer(&conn->workBuffer);
 

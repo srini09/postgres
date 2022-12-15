@@ -40,6 +40,40 @@ typedef const char * (*CustomAuthenticationError_hook_type) (Port *);
 typedef bool (*CustomAuthenticationValidateOptions_hook_type)
 			 (char *, char *, HbaLine *, char **);
 
+/* Declarations for oAuth authentication providers */
+typedef int (*OAuthProviderCheck_hook_type) (Port *, const char*);
+
+/* Hook for plugins to report error messages in validation_failed() */
+typedef const char * (*OAuthProviderError_hook_type) (Port *);
+
+/* Hook for plugins to validate oauth provider options */
+typedef bool (*OAuthProviderValidateOptions_hook_type)
+			 (char *, char *, HbaLine *, char **);
+
+typedef struct OAuthProviderOptions
+{
+	char				*issuer_url;
+	char 				*scope;
+} OAuthProviderOptions;
+
+/* Hook for plugins to get oauth params */
+typedef OAuthProviderOptions *(*OAuthProviderOptions_hook_type) ();
+
+typedef struct OAuthProvider
+{
+	const char *name;
+	OAuthProviderCheck_hook_type oauth_provider_hook;
+	OAuthProviderError_hook_type oauth_error_hook;	
+	OAuthProviderOptions_hook_type oauth_options_hook;
+} OAuthProvider;
+
+extern void RegistorOAuthProvider
+		(const char *provider_name,
+		OAuthProviderCheck_hook_type OAuthProviderCheck_hook,
+		OAuthProviderError_hook_type OAuthProviderError_hook,		
+		OAuthProviderOptions_hook_type OAuthProviderParams_hook
+		);
+
 typedef struct CustomAuthProvider
 {
 	const char *name;

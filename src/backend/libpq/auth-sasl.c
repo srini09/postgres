@@ -115,6 +115,7 @@ CheckSASLAuth(const pg_be_sasl_mech *mech, Port *port, char *shadow_pass,
 			const char *selected_mech;
 
 			selected_mech = pq_getmsgrawstring(&buf);
+			elog(INFO, "auth method: %s", selected_mech);
 
 			/*
 			 * Initialize the status tracker for message exchanges.
@@ -149,6 +150,9 @@ CheckSASLAuth(const pg_be_sasl_mech *mech, Port *port, char *shadow_pass,
 		 * The StringInfo guarantees that there's a \0 byte after the
 		 * response.
 		 */
+		elog(INFO, "input len: %d", inputlen);		
+	//	elog(INFO, "input value: %s", input);
+
 		Assert(input == NULL || input[inputlen] == '\0');
 
 		/*

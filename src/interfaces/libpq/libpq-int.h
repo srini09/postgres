@@ -403,6 +403,7 @@ struct pg_conn
 	char	   *oauth_client_id;		/* client identifier */
 	char	   *oauth_client_secret;	/* client secret */
 	char	   *oauth_scope;			/* access token scope */
+	char       *oauth_bearer_token;		/* oauth bearer token */
 	bool		oauth_want_retry;		/* should we retry on failure? */
 
 	/* Optional file to write trace info to */
