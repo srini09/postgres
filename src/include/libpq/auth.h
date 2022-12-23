@@ -31,6 +31,12 @@ typedef int (*CustomAuthenticationCheck_hook_type) (Port *);
 typedef void (*ClientAuthentication_hook_type) (Port *, int);
 extern PGDLLIMPORT ClientAuthentication_hook_type ClientAuthentication_hook;
 
+typedef struct OAuthProviderOptions
+{
+	char				*oauth_discovery_uri;
+	char 				*scope;
+} OAuthProviderOptions;
+
 /* Declarations for custom authentication providers */
 
 /* Hook for plugins to report error messages in auth_failed() */
@@ -46,18 +52,8 @@ typedef int (*OAuthProviderCheck_hook_type) (Port *, const char*);
 /* Hook for plugins to report error messages in validation_failed() */
 typedef const char * (*OAuthProviderError_hook_type) (Port *);
 
-/* Hook for plugins to validate oauth provider options */
-typedef bool (*OAuthProviderValidateOptions_hook_type)
-			 (char *, char *, HbaLine *, char **);
-
-typedef struct OAuthProviderOptions
-{
-	char				*issuer_url;
-	char 				*scope;
-} OAuthProviderOptions;
-
 /* Hook for plugins to get oauth params */
-typedef OAuthProviderOptions *(*OAuthProviderOptions_hook_type) ();
+typedef OAuthProviderOptions *(*OAuthProviderOptions_hook_type) (Port *);
 
 typedef struct OAuthProvider
 {
@@ -67,11 +63,11 @@ typedef struct OAuthProvider
 	OAuthProviderOptions_hook_type oauth_options_hook;
 } OAuthProvider;
 
-extern void RegistorOAuthProvider
+extern void RegisterOAuthProvider
 		(const char *provider_name,
 		OAuthProviderCheck_hook_type OAuthProviderCheck_hook,
 		OAuthProviderError_hook_type OAuthProviderError_hook,		
-		OAuthProviderOptions_hook_type OAuthProviderParams_hook
+		OAuthProviderOptions_hook_type OAuthProviderOptions_hook
 		);
 
 typedef struct CustomAuthProvider

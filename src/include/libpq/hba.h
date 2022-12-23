@@ -144,6 +144,8 @@ typedef struct HbaLine
 	char	   *radiusidentifiers_s;
 	List	   *radiusports;
 	char	   *radiusports_s;
+	char	   *oauth_issuer;
+	char	   *oauth_scope;
 	bool		oauth_skip_usermap;
 	char	   *custom_provider;
 	List	   *custom_auth_options;

@@ -72,7 +72,7 @@ static char *sanitize_char(char c);
 static char *parse_kvpairs_for_auth(char **input);
 static void generate_error_response(struct oauth_ctx *ctx, char **output, int *outputlen);
 static bool validate(Port *port, const char *auth, const char **logdetail);
-static bool run_validator_command(Port *port, const char *token);
+static bool run_oauth_provider(Port *port, const char *token);
 static bool check_exit(FILE **fh, const char *command);
 static bool unset_cloexec(int fd);
 static bool username_ok_for_shell(const char *username);
@@ -87,7 +87,7 @@ static bool username_ok_for_shell(const char *username);
  */
 
 /*
- * RegistorOAuthProvider registers a OAuth Token Validator to be
+ * RegisterOAuthProvider registers a OAuth Token Validator to be
  * used for oauth token validation. It validates the token and adds the valiator
  * name and it's hooks to a list of loaded token validator. The right validator's
  * hooks can then be called based on the validator name specified in
@@ -97,7 +97,7 @@ static bool username_ok_for_shell(const char *username);
  * add a custom authentication method.
  */
 void
-RegistorOAuthProvider(
+RegisterOAuthProvider(
 	const char *provider_name,
 	OAuthProviderCheck_hook_type OAuthProviderCheck_hook,
 	OAuthProviderError_hook_type OAuthProviderError_hook,
@@ -108,7 +108,7 @@ RegistorOAuthProvider(
 	{
 		ereport(ERROR,
 			(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-			errmsg("RegistorOAuthProvider can only be called by a shared_preload_library")));
+			errmsg("RegisterOAuthProvider can only be called by a shared_preload_library")));
 		return;
 	}
 
@@ -153,7 +153,7 @@ oauth_init(Port *port, const char *selected_mech, const char *shadow_pass)
 {
 	struct oauth_ctx *ctx;
 	
-	OAuthProviderOptions *oauth_options = oauth_provider->oauth_options_hook();
+	OAuthProviderOptions *oauth_options = oauth_provider->oauth_options_hook(port);
 	if (strcmp(selected_mech, OAUTHBEARER_NAME))
 		ereport(ERROR,
 				(errcode(ERRCODE_PROTOCOL_VIOLATION),
@@ -164,7 +164,7 @@ oauth_init(Port *port, const char *selected_mech, const char *shadow_pass)
 	ctx->state = OAUTH_STATE_INIT;
 	ctx->port = port;
 	ctx->scope = oauth_options->scope;
-	ctx->issuer = oauth_options->issuer_url;
+	ctx->issuer = oauth_options->oauth_discovery_uri;
 
 	return ctx;
 }
@@ -449,21 +449,6 @@ static void
 generate_error_response(struct oauth_ctx *ctx, char **output, int *outputlen)
 {
 	StringInfoData	buf;
-
-	/*
-	 * The admin needs to set an issuer and scope for OAuth to work. There's not
-	 * really a way to hide this from the user, either, because we can't choose
-	 * a "default" issuer, so be honest in the failure message.
-	 *
-	 * TODO: see if there's a better place to fail, earlier than this.
-	 */
-	if (!ctx->issuer || !ctx->scope)
-		ereport(FATAL,
-				(errcode(ERRCODE_INTERNAL_ERROR),
-				 errmsg("OAuth is not properly configured for this user"),
-				 errdetail_log("The issuer and scope parameters must be set in pg_hba.conf.")));
-
-
 	initStringInfo(&buf);
 
 	/*
@@ -472,11 +457,13 @@ generate_error_response(struct oauth_ctx *ctx, char **output, int *outputlen)
 	appendStringInfo(&buf,
 		"{ "
 			"\"status\": \"invalid_token\", "
-			"\"openid-configuration\": \"%s/.well-known/openid-configuration\","
+			"\"openid-configuration\": \"%s\","
 			"\"scope\": \"%s\" "
 		"}",
 		ctx->issuer, ctx->scope);
-	elog(INFO,"sending json: %s", buf.data);
+	
+	elog(DEBUG5,"sending json: %s", buf.data);
+
 	*output = buf.data;
 	*outputlen = buf.len;
 }
@@ -561,7 +548,7 @@ validate(Port *port, const char *auth, const char **logdetail)
 	}
 
 	/* Have the validator check the token. */
-	if (!run_validator_command(port, token))
+	if (!run_oauth_provider(port, token))
 		return false;
 
 	if (port->hba->oauth_skip_usermap)
@@ -593,7 +580,7 @@ validate(Port *port, const char *auth, const char **logdetail)
 }
 
 static bool
-run_validator_command(Port *port, const char *token)
+run_oauth_provider(Port *port, const char *token)
 {
 	int result = oauth_provider->oauth_provider_hook(port, token);
 	if(result == STATUS_OK)

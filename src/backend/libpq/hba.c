@@ -2517,6 +2517,18 @@ parse_hba_auth_opt(char *name, char *val, HbaLine *hbaline,
 		hbaline->radiusidentifiers = parsed_identifiers;
 		hbaline->radiusidentifiers_s = pstrdup(val);
 	}
+	else if (strcmp(name, "issuer") == 0)
+	{
+		if (hbaline->auth_method != uaOAuth)
+			INVALID_AUTH_OPTION("issuer", gettext_noop("oauth"));
+		hbaline->oauth_issuer = pstrdup(val);
+	}
+	else if (strcmp(name, "scope") == 0)
+	{
+		if (hbaline->auth_method != uaOAuth)
+			INVALID_AUTH_OPTION("scope", gettext_noop("oauth"));
+		hbaline->oauth_scope = pstrdup(val);
+	}
 	else if (strcmp(name, "trust_validator_authz") == 0)
 	{
 		if (hbaline->auth_method != uaOAuth)
