@@ -414,8 +414,6 @@ struct pg_conn
 	/* OAuth v2 */
 	char	   *oauth_issuer;			/* token issuer URL */
 	char	   *oauth_discovery_uri;	/* URI of the issuer's discovery document */
-	char	   *oauth_client_id;		/* client identifier */
-	char	   *oauth_client_secret;	/* client secret */
 	char	   *oauth_scope;			/* access token scope */
 	char       *oauth_bearer_token;		/* oauth bearer token */
 	bool		oauth_want_retry;		/* should we retry on failure? */

@@ -188,7 +188,7 @@ static int
 oauth_exchange(void *opaq, const char *input, int inputlen,
 			   char **output, int *outputlen, const char **logdetail)
 {
-	char   *p;
+	char   *client_input_ptr;
 	char	cbind_flag;
 	char   *auth;
 
@@ -253,7 +253,7 @@ oauth_exchange(void *opaq, const char *input, int inputlen,
 	}
 
 	/* Handle the client's initial message. */
-	p = pstrdup(input);
+	client_input_ptr = pstrdup(input);
 
 	/*
 	 * OAUTHBEARER does not currently define a channel binding (so there is no
@@ -262,7 +262,7 @@ oauth_exchange(void *opaq, const char *input, int inputlen,
 	 * define one; then future clients can still interoperate with this server
 	 * implementation. 'n' is the expected case.
 	 */
-	cbind_flag = *p;
+	cbind_flag = *client_input_ptr;
 	switch (cbind_flag)
 	{
 		case 'p':
@@ -274,14 +274,14 @@ oauth_exchange(void *opaq, const char *input, int inputlen,
 
 		case 'y': /* fall through */
 		case 'n':
-			p++;
-			if (*p != ',')
+			client_input_ptr++;
+			if (*client_input_ptr != ',')
 				ereport(ERROR,
 						(errcode(ERRCODE_PROTOCOL_VIOLATION),
 						 errmsg("malformed OAUTHBEARER message"),
 						 errdetail("Comma expected, but found character %s.",
-								   sanitize_char(*p))));
-			p++;
+								   sanitize_char(*client_input_ptr))));
+			client_input_ptr++;
 			break;
 
 		default:
@@ -295,28 +295,28 @@ oauth_exchange(void *opaq, const char *input, int inputlen,
 	/*
 	 * Forbid optional authzid (authorization identity).  We don't support it.
 	 */
-	if (*p == 'a')
+	if (*client_input_ptr == 'a')
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("client uses authorization identity, but it is not supported")));
-	if (*p != ',')
+	if (*client_input_ptr != ',')
 		ereport(ERROR,
 				(errcode(ERRCODE_PROTOCOL_VIOLATION),
 				 errmsg("malformed OAUTHBEARER message"),
 				 errdetail("Unexpected attribute %s in client-first-message.",
-						   sanitize_char(*p))));
-	p++;
+						   sanitize_char(*client_input_ptr))));
+	client_input_ptr++;
 
 	/* All remaining fields are separated by the RFC's kvsep (\x01). */
-	if (*p != KVSEP)
+	if (*client_input_ptr != KVSEP)
 		ereport(ERROR,
 				(errcode(ERRCODE_PROTOCOL_VIOLATION),
 				 errmsg("malformed OAUTHBEARER message"),
 				 errdetail("Key-value separator expected, but found character %s.",
-						   sanitize_char(*p))));
-	p++;
+						   sanitize_char(*client_input_ptr))));
+	client_input_ptr++;
 
-	auth = parse_kvpairs_for_auth(&p);
+	auth = parse_kvpairs_for_auth(&client_input_ptr);
 	if (!auth)
 		ereport(ERROR,
 				(errcode(ERRCODE_PROTOCOL_VIOLATION),
@@ -324,7 +324,7 @@ oauth_exchange(void *opaq, const char *input, int inputlen,
 				 errdetail("Message does not contain an auth value.")));
 
 	/* We should be at the end of our message. */
-	if (*p)
+	if (*client_input_ptr)
 		ereport(ERROR,
 				(errcode(ERRCODE_PROTOCOL_VIOLATION),
 				 errmsg("malformed OAUTHBEARER message"),

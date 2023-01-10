@@ -346,14 +346,6 @@ static const internalPQconninfoOption PQconninfoOptions[] = {
 		"OAuth-Issuer", "", 40,
 	offsetof(struct pg_conn, oauth_issuer)},
 
-	{"oauth_client_id", NULL, NULL, NULL,
-		"OAuth-Client-ID", "", 40,
-	offsetof(struct pg_conn, oauth_client_id)},
-
-	{"oauth_client_secret", NULL, NULL, NULL,
-		"OAuth-Client-Secret", "", 40,
-	offsetof(struct pg_conn, oauth_client_secret)},
-
 	{"oauth_scope", NULL, NULL, NULL,
 		"OAuth-Scope", "", 15,
 	offsetof(struct pg_conn, oauth_scope)},
@@ -4069,8 +4061,6 @@ freePGconn(PGconn *conn)
 	free(conn->rowBuf);
 	free(conn->oauth_issuer);
 	free(conn->oauth_discovery_uri);
-	free(conn->oauth_client_id);
-	free(conn->oauth_client_secret);
 	free(conn->oauth_scope);
 	free(conn->oauth_bearer_token);
 	free(conn->target_session_attrs);
