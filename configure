@@ -712,6 +712,7 @@ with_uuid
 with_readline
 with_systemd
 with_selinux
+with_oauth
 with_ldap
 with_krb_srvnam
 krb_srvtab
@@ -859,6 +860,7 @@ with_krb_srvnam
 with_pam
 with_bsd_auth
 with_ldap
+with_oauth
 with_bonjour
 with_selinux
 with_systemd
@@ -1569,6 +1571,7 @@ Optional Packages:
   --with-pam              build with PAM support
   --with-bsd-auth         build with BSD Authentication support
   --with-ldap             build with LDAP support
+  --with-oauth            build with OAuth 2.0 support
   --with-bonjour          build with Bonjour support
   --with-selinux          build with SELinux support
   --with-systemd          build with systemd support
@@ -8807,6 +8810,42 @@ fi
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $with_ldap" >&5
 $as_echo "$with_ldap" >&6; }
+
+
+
+#
+# OAuth 2.0
+#
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether to build with OAuth support" >&5
+$as_echo_n "checking whether to build with OAuth support... " >&6; }
+
+
+
+# Check whether --with-oauth was given.
+if test "${with_oauth+set}" = set; then :
+  withval=$with_oauth;
+  case $withval in
+    yes)
+
+$as_echo "#define USE_OAUTH 1" >>confdefs.h
+
+      ;;
+    no)
+      :
+      ;;
+    *)
+      as_fn_error $? "no argument expected for --with-oauth option" "$LINENO" 5
+      ;;
+  esac
+
+else
+  with_oauth=no
+
+fi
+
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $with_oauth" >&5
+$as_echo "$with_oauth" >&6; }
 
 
 

@@ -951,6 +951,17 @@ AC_SUBST(with_ldap)
 
 
 #
+# OAuth 2.0
+#
+AC_MSG_CHECKING([whether to build with OAuth support])
+PGAC_ARG_BOOL(with, oauth, no,
+              [build with OAuth 2.0 support],
+              [AC_DEFINE([USE_OAUTH], 1, [Define to 1 to build with OAuth 2.0 support. (--with-oauth)])])
+AC_MSG_RESULT([$with_oauth])
+AC_SUBST(with_oauth)
+
+
+#
 # Bonjour
 #
 AC_MSG_CHECKING([whether to build with Bonjour support])

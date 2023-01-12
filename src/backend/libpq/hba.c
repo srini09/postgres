@@ -124,7 +124,8 @@ static const char *const UserAuthName[] =
 	"ldap",
 	"cert",
 	"radius",
-	"peer"
+	"peer",
+	"oauth",
 };
 
 /*
@@ -1803,6 +1804,8 @@ parse_hba_line(TokenizedAuthLine *tok_line, int elevel)
 #endif
 	else if (strcmp(token->string, "radius") == 0)
 		parsedline->auth_method = uaRADIUS;
+	else if (strcmp(token->string, "oauth") == 0)
+		parsedline->auth_method = uaOAuth;
 	else
 	{
 		ereport(elevel,
@@ -2095,6 +2098,15 @@ parse_hba_line(TokenizedAuthLine *tok_line, int elevel)
 		parsedline->clientcert = clientCertFull;
 	}
 
+	/*
+	 * Ensure that the provider name is specified as provider for oauth method.
+	 */
+	if (parsedline->auth_method == uaOAuth)
+	{
+		MANDATORY_AUTH_ARG(parsedline->oauth_provider, "provider", "oauth");
+	}
+
+
 	return parsedline;
 }
 
@@ -2122,8 +2134,9 @@ parse_hba_auth_opt(char *name, char *val, HbaLine *hbaline,
 			hbaline->auth_method != uaPeer &&
 			hbaline->auth_method != uaGSS &&
 			hbaline->auth_method != uaSSPI &&
+			hbaline->auth_method != uaOAuth &&
 			hbaline->auth_method != uaCert)
-			INVALID_AUTH_OPTION("map", gettext_noop("ident, peer, gssapi, sspi, and cert"));
+			INVALID_AUTH_OPTION("map", gettext_noop("ident, peer, gssapi, sspi, oauth, and cert"));
 		hbaline->usermap = pstrdup(val);
 	}
 	else if (strcmp(name, "clientcert") == 0)
@@ -2505,6 +2518,54 @@ parse_hba_auth_opt(char *name, char *val, HbaLine *hbaline,
 
 		hbaline->radiusidentifiers = parsed_identifiers;
 		hbaline->radiusidentifiers_s = pstrdup(val);
+	}
+	else if (strcmp(name, "issuer") == 0)
+	{
+		if (hbaline->auth_method != uaOAuth)
+			INVALID_AUTH_OPTION("issuer", gettext_noop("oauth"));
+		hbaline->oauth_issuer = pstrdup(val);
+	}
+	else if (strcmp(name, "scope") == 0)
+	{
+		if (hbaline->auth_method != uaOAuth)
+			INVALID_AUTH_OPTION("scope", gettext_noop("oauth"));
+		hbaline->oauth_scope = pstrdup(val);
+	}
+	else if (strcmp(name, "trust_validator_authz") == 0)
+	{
+		if (hbaline->auth_method != uaOAuth)
+			INVALID_AUTH_OPTION("trust_validator_authz", gettext_noop("oauth"));
+		if (strcmp(val, "1") == 0)
+			hbaline->oauth_skip_usermap = true;
+		else
+			hbaline->oauth_skip_usermap = false;
+	}
+	else if (strcmp(name, "provider") == 0)
+	{
+		REQUIRE_AUTH_OPTION(uaOAuth, "provider", "oauth");
+		
+		if (hbaline->auth_method != uaOAuth)
+			INVALID_AUTH_OPTION("provider", gettext_noop("oauth"));
+		/*
+		 * Verify that the provider mentioned is loaded via shared_preload_libraries.
+		 */
+		if (get_provider_by_name(val) == NULL)
+		{
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("cannot use oauth provider %s",val),
+					 errhint("Load provider via shared_preload_libraries."),
+					 errcontext("line %d of configuration file \"%s\"",
+								line_num, HbaFileName)));
+			*err_msg = psprintf("cannot use oauth provider %s", val);
+
+			return false;
+		}
+		else
+		{
+			hbaline->oauth_provider = pstrdup(val);
+		}
+		
 	}
 	else
 	{

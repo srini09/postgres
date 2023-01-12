@@ -63,6 +63,11 @@ OBJS += \
 	fe-secure-gssapi.o
 endif
 
+ifeq ($(with_oauth),yes)
+OBJS += \
+	fe-auth-oauth.o
+endif
+
 ifeq ($(PORTNAME), cygwin)
 override shlib = cyg$(NAME)$(DLSUFFIX)
 endif

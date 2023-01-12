@@ -157,6 +157,20 @@ typedef struct
 	void	   *noticeProcArg;
 } PGNoticeHooks;
 
+typedef struct
+{
+	char	*oauth_discovery_uri; /* URI of the issuer's discovery document */
+	char	*oauth_issuer;
+	char	*oauth_scope;
+} PGOAuthMsgObj;
+
+/* Fields needed for oauth callback handling */
+typedef struct
+{
+	PQOAuthNoticeReceiver noticeRec; /* OAuth notice message receiver */
+	void	   *noticeRecArg;
+} PGOAuthNoticeHooks;
+
 typedef struct PGEvent
 {
 	PGEventProc proc;			/* the function to call on events */
@@ -186,6 +200,7 @@ struct pg_result
 	 * on the PGresult don't have to reference the PGconn.
 	 */
 	PGNoticeHooks noticeHooks;
+	PGOAuthNoticeHooks oauthNoticeHooks;
 	PGEvent    *events;
 	int			nEvents;
 	int			client_encoding;	/* encoding id */
@@ -397,12 +412,22 @@ struct pg_conn
 	char	   *ssl_max_protocol_version;	/* maximum TLS protocol version */
 	char	   *target_session_attrs;	/* desired session properties */
 
+	/* OAuth v2 */
+	char	   *oauth_issuer;			/* token issuer URL */
+	char	   *oauth_discovery_uri;	/* URI of the issuer's discovery document */
+	char	   *oauth_scope;			/* access token scope */
+	char       *oauth_bearer_token;		/* oauth bearer token */
+	bool		oauth_want_retry;		/* should we retry on failure? */
+
 	/* Optional file to write trace info to */
 	FILE	   *Pfdebug;
 	int			traceFlags;
 
 	/* Callback procedures for notice message processing */
 	PGNoticeHooks noticeHooks;
+
+	/* Callback procedures for notifying messages during oauth method*/
+	PGOAuthNoticeHooks oauthNoticeHooks;
 
 	/* Event procs registered via PQregisterEventProc */
 	PGEvent    *events;			/* expandable array of event data */
@@ -669,6 +694,7 @@ extern void pqClearAsyncResult(PGconn *conn);
 extern void pqSaveErrorResult(PGconn *conn);
 extern PGresult *pqPrepareAsyncResult(PGconn *conn);
 extern void pqInternalNotice(const PGNoticeHooks *hooks, const char *fmt,...) pg_attribute_printf(2, 3);
+extern void pqInternalOAuthNotice(const PGOAuthNoticeHooks *hooks, const char *fmt,...);
 extern void pqSaveMessageField(PGresult *res, char code,
 							   const char *value);
 extern void pqSaveParameterStatus(PGconn *conn, const char *name,
