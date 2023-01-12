@@ -51,7 +51,7 @@ static const char *OAuthError(Port *port)
 static OAuthProviderOptions *OAuthOptions(Port *port)
 {
 	StringInfoData	buf;
-	OAuthProviderOptions *oauth_end_points;
+	OAuthProviderOptions *oauth_options;
 	initStringInfo(&buf);
 
 	/*
@@ -71,10 +71,11 @@ static OAuthProviderOptions *OAuthOptions(Port *port)
 	}
 
 	appendStringInfo(&buf, "%s/.well-known/openid-configuration", port->hba->oauth_issuer);
-	oauth_end_points = palloc(sizeof(OAuthProviderOptions));
-	oauth_end_points->oauth_discovery_uri = buf.data;
-	oauth_end_points->scope = port->hba->oauth_scope;
-	return oauth_end_points;
+	oauth_options = palloc(sizeof(OAuthProviderOptions));
+	oauth_options->oauth_discovery_uri = buf.data;
+	oauth_options->scope = port->hba->oauth_scope;
+	oauth_options->oauth_issuer = port->hba->oauth_issuer;
+	return oauth_options;
 }
 
 void
