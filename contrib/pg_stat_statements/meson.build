@@ -1,3 +1,5 @@
+# Copyright (c) 2022-2023, PostgreSQL Global Development Group
+
 pg_stat_statements_sources = files(
   'pg_stat_statements.c',
 )

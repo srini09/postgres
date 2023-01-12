@@ -3,6 +3,7 @@ THE SHORT VERSION
 
 On non-Windows machines, you can execute the testing process
 described below by running the following command in this directory:
+
 	make check
 
 This will run the TAP tests to run pg_upgrade, performing an upgrade
@@ -16,8 +17,33 @@ the creation of the dump):
 export olddump=...somewhere/dump.sql	(old version's dump)
 export oldinstall=...otherversion/	(old version's install base path)
 
+"filter_rules" is a variable that can be used to specify a file with custom
+filtering rules applied before comparing the dumps of the PostgreSQL
+instances near the end of the tests, in the shape of regular expressions
+valid for perl.  This is useful to enforce certain validation cases where
+pg_dump could create inconsistent outputs across major versions.
+For example:
+
+	# Remove all CREATE POLICY statements
+	s/^CREATE\sPOLICY.*//mgx
+	# Replace REFRESH with DROP for materialized views
+	s/^REFRESH\s(MATERIALIZED\sVIEW)/DROP $1/mgx
+
+Lines beginning with '#' and empty lines are ignored.  One rule can be
+defined per line.
+
 Finally, the tests can be done by running
+
 	make check
+
+You can also test the different transfer modes (--copy, --link,
+--clone) by setting the environment variable PG_TEST_PG_UPGRADE_MODE
+to the respective command-line option, like
+
+	make check PG_TEST_PG_UPGRADE_MODE=--link
+
+The default is --copy.  Note that the other modes are not supported on
+all operating systems.
 
 DETAILS
 -------

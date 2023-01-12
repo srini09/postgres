@@ -12,6 +12,9 @@ use PostgreSQL::Test::Cluster;
 use PostgreSQL::Test::Utils;
 use Test::More;
 
+# Can be changed to test the other modes.
+my $mode = $ENV{PG_TEST_PG_UPGRADE_MODE} || '--copy';
+
 # Generate a database with a name made of a range of ASCII characters.
 sub generate_db
 {
@@ -41,6 +44,31 @@ sub filter_dump
 	$dump_contents =~ s/^\-\-.*//mgx;
 	# Remove empty lines.
 	$dump_contents =~ s/^\n//mgx;
+
+	# Apply custom filtering rules, if any.
+	if (defined($ENV{filter_rules}))
+	{
+		my $filter_file = $ENV{filter_rules};
+		die "no file with custom filter rules found!" unless -e $filter_file;
+
+		open my $filter_handle, '<', $filter_file
+		  or die "could not open $filter_file";
+		while (<$filter_handle>)
+		{
+			my $filter_line = $_;
+
+			# Skip comments and empty lines
+			next if ($filter_line =~ /^#/);
+			next if ($filter_line =~ /^\s*$/);
+
+			# Apply lines with filters.
+			note "Applying custom rule $filter_line to $dump_file";
+			my $filter = "\$dump_contents =~ $filter_line";
+			## no critic (ProhibitStringyEval)
+			eval $filter;
+		}
+		close $filter_handle;
+	}
 
 	my $dump_file_filtered = "${dump_file}_filtered";
 	open(my $dh, '>', $dump_file_filtered)
@@ -74,6 +102,8 @@ if (   (defined($ENV{olddump}) && !defined($ENV{oldinstall}))
 my $tempdir    = PostgreSQL::Test::Utils::tempdir;
 my $dump1_file = "$tempdir/dump1.sql";
 my $dump2_file = "$tempdir/dump2.sql";
+
+note "testing using transfer mode $mode";
 
 # Initialize node to upgrade
 my $oldnode =
@@ -128,6 +158,7 @@ else
 	# --inputdir points to the path of the input files.
 	my $inputdir = "$srcdir/src/test/regress";
 
+	note 'running regression tests in old instance';
 	my $rc =
 	  system($ENV{PG_REGRESS}
 		  . " $extra_opts "
@@ -256,7 +287,8 @@ command_fails(
 		'-s',         $newnode->host,
 		'-p',         $oldnode->port,
 		'-P',         $newnode->port,
-		'--check'
+		$mode,
+		'--check',
 	],
 	'run of pg_upgrade --check for new instance with incorrect binary path');
 ok(-d $newnode->data_dir . "/pg_upgrade_output.d",
@@ -270,7 +302,8 @@ command_ok(
 		'-D',         $newnode->data_dir, '-b', $oldbindir,
 		'-B',         $newbindir,         '-s', $newnode->host,
 		'-p',         $oldnode->port,     '-P', $newnode->port,
-		'--check'
+		$mode,
+		'--check',
 	],
 	'run of pg_upgrade --check for new instance');
 ok(!-d $newnode->data_dir . "/pg_upgrade_output.d",
@@ -282,7 +315,8 @@ command_ok(
 		'pg_upgrade', '--no-sync',        '-d', $oldnode->data_dir,
 		'-D',         $newnode->data_dir, '-b', $oldbindir,
 		'-B',         $newbindir,         '-s', $newnode->host,
-		'-p',         $oldnode->port,     '-P', $newnode->port
+		'-p',         $oldnode->port,     '-P', $newnode->port,
+		$mode,
 	],
 	'run of pg_upgrade for new instance');
 ok( !-d $newnode->data_dir . "/pg_upgrade_output.d",

@@ -3,7 +3,7 @@
  * lockcmds.c
  *	  LOCK command support code
  *
- * Portions Copyright (c) 1996-2022, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -299,6 +299,9 @@ LockTableAclCheck(Oid reloid, LOCKMODE lockmode, Oid userid)
 		aclmask = ACL_INSERT | ACL_UPDATE | ACL_DELETE | ACL_TRUNCATE;
 	else
 		aclmask = ACL_UPDATE | ACL_DELETE | ACL_TRUNCATE;
+
+	/* MAINTAIN privilege allows all lock modes */
+	aclmask |= ACL_MAINTAIN;
 
 	aclresult = pg_class_aclcheck(reloid, userid, aclmask);
 

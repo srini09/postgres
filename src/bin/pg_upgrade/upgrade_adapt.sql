@@ -19,7 +19,8 @@ SELECT
   ver <= 906 AS oldpgversion_le96,
   ver <= 1000 AS oldpgversion_le10,
   ver <= 1100 AS oldpgversion_le11,
-  ver <= 1300 AS oldpgversion_le13
+  ver <= 1300 AS oldpgversion_le13,
+  ver <= 1500 AS oldpgversion_le15
   FROM (SELECT current_setting('server_version_num')::int / 100 AS ver) AS v;
 \gset
 
@@ -72,10 +73,10 @@ DO $stmt$
     FROM pg_class
     WHERE relname !~ '^pg_'
       AND relhasoids
-      AND relkind in ('r','m')
+      AND relkind in ('r', 'f')
     ORDER BY 1
   LOOP
-    execute 'ALTER TABLE ' || rec || ' SET WITHOUT OIDS';
+    EXECUTE 'ALTER TABLE ' || quote_ident(rec) || ' SET WITHOUT OIDS';
   END LOOP;
   END; $stmt$;
 \endif
@@ -88,4 +89,27 @@ DROP OPERATOR public.#@# (pg_catalog.int8, NONE);
 DROP OPERATOR public.#%# (pg_catalog.int8, NONE);
 DROP OPERATOR public.!=- (pg_catalog.int8, NONE);
 DROP OPERATOR public.#@%# (pg_catalog.int8, NONE);
+\endif
+
+-- Objects last appearing in 15.
+-- The internal format of "aclitem" has changed in 16, so replace it with
+-- text type in tables.
+\if :oldpgversion_le15
+DO $stmt$
+  DECLARE
+    rec record;
+  BEGIN
+  FOR rec in
+    SELECT oid::regclass::text as rel, attname as col
+    FROM pg_class c, pg_attribute a
+    WHERE c.relname !~ '^pg_'
+      AND c.relkind IN ('r')
+      AND a.attrelid = c.oid
+      AND a.atttypid = 'aclitem'::regtype
+    ORDER BY 1
+  LOOP
+    EXECUTE 'ALTER TABLE ' || quote_ident(rec.rel) || ' ALTER COLUMN ' ||
+      quote_ident(rec.col) || ' SET DATA TYPE text';
+  END LOOP;
+  END; $stmt$;
 \endif
