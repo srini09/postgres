@@ -1401,6 +1401,8 @@ WaitEventSetWait(WaitEventSet *set, long timeout,
 		Assert(timeout >= 0 && timeout <= INT_MAX);
 		cur_timeout = timeout;
 	}
+	else
+		INSTR_TIME_SET_ZERO(start_time);
 
 	pgstat_report_wait_start(wait_event_info);
 
@@ -1525,7 +1527,7 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 
 	/* Sleep */
 	rc = epoll_wait(set->epoll_fd, set->epoll_ret_events,
-					nevents, cur_timeout);
+					Min(nevents, set->nevents_space), cur_timeout);
 
 	/* Check return code */
 	if (rc < 0)
@@ -1685,7 +1687,8 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 
 	/* Sleep */
 	rc = kevent(set->kqueue_fd, NULL, 0,
-				set->kqueue_ret_events, nevents,
+				set->kqueue_ret_events,
+				Min(nevents, set->nevents_space),
 				timeout_p);
 
 	/* Check return code */
