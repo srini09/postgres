@@ -48,7 +48,6 @@ extern PGDLLIMPORT ClientAuthentication_hook_type ClientAuthentication_hook;
 typedef struct OAuthProviderOptions
 {
 	char	*oauth_discovery_uri;
-	char	*oauth_issuer;
 	char 	*scope;
 } OAuthProviderOptions;
 

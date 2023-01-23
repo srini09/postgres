@@ -160,7 +160,6 @@ typedef struct
 typedef struct
 {
 	char	*oauth_discovery_uri; /* URI of the issuer's discovery document */
-	char	*oauth_issuer;
 	char	*oauth_scope;
 } PGOAuthMsgObj;
 

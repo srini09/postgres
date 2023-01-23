@@ -74,7 +74,7 @@ static OAuthProviderOptions *OAuthOptions(Port *port)
 	oauth_options = palloc(sizeof(OAuthProviderOptions));
 	oauth_options->oauth_discovery_uri = buf.data;
 	oauth_options->scope = port->hba->oauth_scope;
-	oauth_options->oauth_issuer = port->hba->oauth_issuer;
+
 	return oauth_options;
 }
 

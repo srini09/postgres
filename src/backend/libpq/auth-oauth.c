@@ -64,7 +64,6 @@ struct oauth_ctx
 {
 	oauth_state	state;
 	Port	   *port;
-	const char *oauth_issuer;
 	const char *discovery_uri;
 	const char *scope;
 };
@@ -180,7 +179,6 @@ oauth_init(Port *port, const char *selected_mech, const char *shadow_pass)
 	ctx->state = OAUTH_STATE_INIT;
 	ctx->port = port;
 	ctx->scope = oauth_options->scope;
-	ctx->oauth_issuer = oauth_options->oauth_issuer;
 	ctx->discovery_uri = oauth_options->oauth_discovery_uri;
 
 	return ctx;
@@ -475,10 +473,9 @@ generate_error_response(struct oauth_ctx *ctx, char **output, int *outputlen)
 		"{ "
 			"\"status\": \"invalid_token\", "
 			"\"openid-configuration\": \"%s\","
-			"\"scope\": \"%s\" ",
-			"\"issuer\": \"%s\" ",
+			"\"scope\": \"%s\" "
 		"}",
-		ctx->discovery_uri, ctx->scope, ctx->oauth_issuer);
+		ctx->discovery_uri, ctx->scope);
 
 	*output = buf.data;
 	*outputlen = buf.len;

@@ -147,7 +147,6 @@ client_initial_response(PGconn *conn)
 
 	oauthMsgObj.oauth_discovery_uri = conn->oauth_discovery_uri;
 	oauthMsgObj.oauth_scope = conn->oauth_scope;
-	oauthMsgObj.oauth_issuer = conn->oauth_issuer;
 	conn->oauthNoticeHooks.noticeRecArg = (void*) &oauthMsgObj;
 	pqInternalOAuthNotice(&conn->oauthNoticeHooks, "");
 
@@ -175,7 +174,6 @@ cleanup:
 #define ERROR_STATUS_FIELD "status"
 #define ERROR_SCOPE_FIELD "scope"
 #define ERROR_OPENID_CONFIGURATION_FIELD "openid-configuration"
-#define ERROR_ISSUER  "issuer"
 
 struct json_ctx
 {
@@ -262,12 +260,6 @@ oauth_json_object_field_start(void *state, char *name, bool isnull)
 			ctx->target_field_name = ERROR_OPENID_CONFIGURATION_FIELD;
 			ctx->target_field = &ctx->discovery_uri;
 		}
-		else if (!strcmp(name, ERROR_ISSUER))
-		{
-			ctx->target_field_name = ERROR_ISSUER;
-			ctx->target_field = &ctx->issuer;
-		}
-
 	}
 
 	free(name);
@@ -405,13 +397,6 @@ handle_oauth_sasl_error(PGconn *conn, char *msg, int msglen)
 		conn->oauth_scope = ctx.scope;
 	}
 
-	if(ctx.issuer)
-	{
-		if(conn->oauth_issuer)
-			free(conn->oauth_issuer);
-		
-		conn->oauth_issuer = ctx.issuer;
-	}
 	/* TODO: missing error scope should clear any existing connection scope */
 
 	if (!ctx.status)
