@@ -8,6 +8,20 @@ import os
 import pytest
 
 
+def pytest_addoption(parser):
+    """
+    Adds custom command line options to py.test. We add one to signal temporary
+    Postgres instance creation for the server tests.
+
+    Per pytest documentation, this must live in the top level test directory.
+    """
+    parser.addoption(
+        "--temp-instance",
+        metavar="DIR",
+        help="create a temporary Postgres instance in DIR",
+    )
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _check_PG_TEST_EXTRA(request):
     """

@@ -35,24 +35,6 @@ MAX_TOKEN_SIZE = 4096
 MAX_UINT16 = 2**16 - 1
 
 
-def skip_if_no_postgres():
-    """
-    Used by the oauth_ctx fixture to skip this test module if no Postgres server
-    is running.
-
-    This logic is nearly duplicated with the conn fixture. Ideally oauth_ctx
-    would depend on that, but a module-scope fixture can't depend on a
-    test-scope fixture, and we haven't reached the rule of three yet.
-    """
-    addr = (pq3.pghost(), pq3.pgport())
-
-    try:
-        with socket.create_connection(addr, timeout=BLOCKING_TIMEOUT):
-            pass
-    except ConnectionError as e:
-        pytest.skip(f"unable to connect to {addr}: {e}")
-
-
 @contextlib.contextmanager
 def prepend_file(path, lines):
     """
@@ -79,7 +61,7 @@ def prepend_file(path, lines):
 
 
 @pytest.fixture(scope="module")
-def oauth_ctx():
+def oauth_ctx(postgres_instance):
     """
     Creates a database and user that use the oauth auth method. The context
     object contains the dbname and user attributes as strings to be used during
@@ -90,8 +72,6 @@ def oauth_ctx():
     server running on a local machine, and that the PGUSER has rights to create
     databases and roles.
     """
-    skip_if_no_postgres()  # don't bother running these tests without a server
-
     id = secrets.token_hex(4)
 
     class Context:
@@ -112,7 +92,8 @@ def oauth_ctx():
     )
     ident_lines = (r"oauth /^(.*)@example\.com$ \1",)
 
-    conn = psycopg2.connect("")
+    host, port = postgres_instance
+    conn = psycopg2.connect(host=host, port=port)
     conn.autocommit = True
 
     with contextlib.closing(conn):
@@ -920,7 +901,7 @@ def test_oauth_empty_initial_response(conn, oauth_ctx, bearer_token):
 
 
 @pytest.fixture()
-def set_validator():
+def set_validator(postgres_instance):
     """
     A per-test fixture that allows a test to override the setting of
     oauth_validator_command for the cluster. The setting will be reverted during
@@ -928,7 +909,8 @@ def set_validator():
 
     Passing None will perform an ALTER SYSTEM RESET.
     """
-    conn = psycopg2.connect("")
+    host, port = postgres_instance
+    conn = psycopg2.connect(host=host, port=port)
     conn.autocommit = True
 
     with contextlib.closing(conn):

@@ -28,6 +28,13 @@ import pq3
 
 from .conftest import BLOCKING_TIMEOUT
 
+# The client tests need libpq to have been compiled with OAuth support; skip
+# them otherwise.
+pytestmark = pytest.mark.skipif(
+    os.getenv("with_oauth") == "none",
+    reason="OAuth client tests require --with-oauth support",
+)
+
 if platform.system() == "Darwin":
     libpq = ctypes.cdll.LoadLibrary("libpq.5.dylib")
 else:

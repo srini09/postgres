@@ -15,7 +15,7 @@ to do is a
 
     export PGDATABASE=postgres
 
-but you can adjust as needed for your setup.
+but you can adjust as needed for your setup. See also 'Advanced Usage' below.
 
 ## Requirements
 
@@ -59,3 +59,8 @@ To make quick smoke tests possible, slow tests have been marked explicitly. You
 can skip them by saying e.g.
 
     $ py.test -m 'not slow'
+
+If you'd rather not test against an existing server, you can have the suite spin
+up a temporary one using whatever pg_ctl it finds in PATH:
+
+    $ py.test --temp-instance=./tmp_check
